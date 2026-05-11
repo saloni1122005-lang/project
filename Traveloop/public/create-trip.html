@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Trip - Traveloop</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/trips">My Trips</a></li>
+        <li><a href="/profile">Profile</a></li>
+        <li><a href="#" onclick="logout(); return false;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <section class="header">
+      <h1>Create a New Trip</h1>
+      <p>Start planning your adventure</p>
+    </section>
+
+    <div style="max-width: 600px; margin: 0 auto;">
+      <div class="card">
+        <div class="card-body">
+          <div id="alertContainer"></div>
+          <form id="createTripForm">
+            <div class="form-group">
+              <label for="tripName">Trip Name</label>
+              <input type="text" id="tripName" class="form-control" placeholder="e.g., Summer Europe 2024" required>
+              <span class="error-message" id="tripNameError"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="description">Description</label>
+              <textarea id="description" class="form-control" placeholder="Describe your trip..."></textarea>
+              <span class="error-message" id="descriptionError"></span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div class="form-group">
+                <label for="startDate">Start Date</label>
+                <input type="date" id="startDate" class="form-control" required>
+                <span class="error-message" id="startDateError"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="endDate">End Date</label>
+                <input type="date" id="endDate" class="form-control" required>
+                <span class="error-message" id="endDateError"></span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="budgetLimit">Budget Limit (Optional)</label>
+              <input type="number" id="budgetLimit" class="form-control" placeholder="Enter your budget" min="0" step="0.01">
+              <span class="error-message" id="budgetLimitError"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="tripImage">Trip Cover Image (Optional)</label>
+              <input type="file" id="tripImage" class="form-control" accept="image/*">
+              <span class="error-message" id="imageError"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">Create Trip</button>
+            <a href="/trips" class="btn btn-block" style="background-color: #636e72; color: white; margin-top: 0.5rem;">Cancel</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      document.getElementById('createTripForm').addEventListener('submit', handleCreateTrip);
+    });
+
+    async function handleCreateTrip(e) {
+      e.preventDefault();
+
+      // Clear errors
+      document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+
+      const tripName = document.getElementById('tripName').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const budgetLimit = document.getElementById('budgetLimit').value;
+      const tripImage = document.getElementById('tripImage');
+
+      // Validation
+      let hasError = false;
+
+      if (!tripName) {
+        document.getElementById('tripNameError').textContent = 'Trip name is required';
+        hasError = true;
+      }
+
+      if (!startDate) {
+        document.getElementById('startDateError').textContent = 'Start date is required';
+        hasError = true;
+      }
+
+      if (!endDate) {
+        document.getElementById('endDateError').textContent = 'End date is required';
+        hasError = true;
+      }
+
+      if (startDate && endDate && startDate >= endDate) {
+        document.getElementById('endDateError').textContent = 'End date must be after start date';
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      try {
+        let imageData = null;
+
+        // Handle image upload
+        if (tripImage.files.length > 0) {
+          const file = tripImage.files[0];
+          const reader = new FileReader();
+          
+          await new Promise((resolve) => {
+            reader.onload = (e) => {
+              imageData = e.target.result;
+              resolve();
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+
+        const token = localStorage.getItem('authToken');
+
+        const response = await fetch('/api/trips', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: tripName,
+            description,
+            startDate,
+            endDate,
+            image: imageData,
+            budgetLimit: budgetLimit || null
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showAlert('Trip created successfully! Redirecting...', 'success');
+          setTimeout(() => {
+            window.location.href = `/trip/${data.tripId}`;
+          }, 1000);
+        } else {
+          showAlert(data.message || 'Failed to create trip', 'danger');
+        }
+      } catch (err) {
+        showAlert('Error: ' + err.message, 'danger');
+      }
+    }
+
+    function showAlert(message, type) {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.innerHTML = '';
+      container.appendChild(alert);
+    }
+  </script>
+</body>
+</html>

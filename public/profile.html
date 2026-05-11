@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - Traveloop</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/trips">My Trips</a></li>
+        <li><a href="/profile">Profile</a></li>
+        <li><a href="#" onclick="logout(); return false;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <section class="header">
+      <h1>Profile Settings</h1>
+      <p>Manage your account and preferences</p>
+    </section>
+
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; margin-bottom: 2rem;">
+      <!-- Profile Picture -->
+      <div class="card">
+        <div class="card-body text-center">
+          <div id="profilePhoto" style="width: 150px; height: 150px; background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;">
+            👤
+          </div>
+          <p id="userName" style="font-size: 1.2rem; font-weight: bold;"></p>
+          <p id="userEmail" style="color: #636e72;"></p>
+        </div>
+      </div>
+
+      <!-- Profile Form -->
+      <div class="card">
+        <div class="card-header">Update Profile</div>
+        <div class="card-body">
+          <div id="alertContainer"></div>
+          <form id="profileForm">
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" id="fullName" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+              <label>Profile Photo</label>
+              <input type="file" id="profilePhotoFile" class="form-control" accept="image/*">
+              <small style="color: #636e72;">Max size: 5MB</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Update Profile</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Actions -->
+    <div class="card">
+      <div class="card-header">Account Actions</div>
+      <div class="card-body">
+        <button class="btn btn-danger" onclick="deleteAccount()">Delete Account</button>
+        <p style="color: #636e72; margin-top: 1rem; font-size: 0.9rem;">⚠️ Warning: This action cannot be undone. All your trips and data will be permanently deleted.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      loadProfile();
+      document.getElementById('profileForm').addEventListener('submit', handleUpdateProfile);
+    });
+
+    async function loadProfile() {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        const response = await fetch('/api/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          document.getElementById('fullName').value = data.user.name;
+          document.getElementById('userName').textContent = data.user.name;
+          document.getElementById('userEmail').textContent = data.user.email;
+        }
+      } catch (err) {
+        console.error('Error loading profile:', err);
+      }
+    }
+
+    async function handleUpdateProfile(e) {
+      e.preventDefault();
+
+      const token = localStorage.getItem('authToken');
+      const name = document.getElementById('fullName').value;
+      const profilePhotoFile = document.getElementById('profilePhotoFile');
+
+      let profilePhoto = null;
+
+      if (profilePhotoFile.files.length > 0) {
+        const file = profilePhotoFile.files[0];
+
+        if (file.size > 5 * 1024 * 1024) {
+          showAlert('Profile photo must be less than 5MB', 'danger');
+          return;
+        }
+
+        const reader = new FileReader();
+
+        await new Promise((resolve) => {
+          reader.onload = (e) => {
+            profilePhoto = e.target.result;
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      try {
+        const response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name,
+            profilePhoto
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showAlert('Profile updated successfully!', 'success');
+          const user = JSON.parse(localStorage.getItem('user'));
+          user.name = name;
+          localStorage.setItem('user', JSON.stringify(user));
+          loadProfile();
+        } else {
+          showAlert(data.message || 'Failed to update profile', 'danger');
+        }
+      } catch (err) {
+        showAlert('Error: ' + err.message, 'danger');
+      }
+    }
+
+    async function deleteAccount() {
+      if (!confirm('Are you sure you want to delete your account? This cannot be undone!')) {
+        return;
+      }
+
+      if (!confirm('All your trips and data will be permanently deleted. Click OK to confirm.')) {
+        return;
+      }
+
+      const token = localStorage.getItem('authToken');
+
+      try {
+        const response = await fetch('/api/profile', {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+          alert('Account deleted successfully');
+          window.location.href = '/';
+        }
+      } catch (err) {
+        alert('Error deleting account: ' + err.message);
+      }
+    }
+
+    function showAlert(message, type) {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.innerHTML = '';
+      container.appendChild(alert);
+    }
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

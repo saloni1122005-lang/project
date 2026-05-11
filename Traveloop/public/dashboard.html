@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Traveloop</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/trips">My Trips</a></li>
+        <li><a href="/cities">Explore</a></li>
+        <li><a href="/profile">Profile</a></li>
+        <li><a href="#" onclick="logout(); return false;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <section class="header">
+      <h1>Welcome, <span id="userName">Traveler</span>!</h1>
+      <p>Ready for your next adventure?</p>
+    </section>
+
+    <!-- Quick Actions -->
+    <section style="margin-bottom: 2rem;">
+      <a href="/create-trip" class="btn btn-primary" style="margin-bottom: 1rem;">+ Create New Trip</a>
+    </section>
+
+    <!-- Recent Trips -->
+    <section>
+      <h2>Your Recent Trips</h2>
+      <div id="recentTripsContainer" class="row"></div>
+    </section>
+
+    <!-- Recommended Destinations -->
+    <section style="margin-top: 3rem;">
+      <h2>Recommended Destinations</h2>
+      <div id="recommendedCitiesContainer" class="row"></div>
+    </section>
+
+    <!-- Quick Stats -->
+    <section style="margin-top: 3rem; margin-bottom: 3rem;">
+      <h2>Your Travel Stats</h2>
+      <div class="row">
+        <div class="card text-center">
+          <div class="card-body">
+            <div style="font-size: 2.5rem; color: var(--primary); font-weight: bold;" id="totalTrips">0</div>
+            <p style="margin-top: 0.5rem; color: #636e72;">Total Trips</p>
+          </div>
+        </div>
+        <div class="card text-center">
+          <div class="card-body">
+            <div style="font-size: 2.5rem; color: var(--secondary); font-weight: bold;" id="totalCities">0</div>
+            <p style="margin-top: 0.5rem; color: #636e72;">Cities Visited</p>
+          </div>
+        </div>
+        <div class="card text-center">
+          <div class="card-body">
+            <div style="font-size: 2.5rem; color: var(--success); font-weight: bold;" id="totalBudget">$0</div>
+            <p style="margin-top: 0.5rem; color: #636e72;">Total Budget</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Check authentication
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      loadDashboard();
+    });
+
+    async function loadDashboard() {
+      const token = localStorage.getItem('authToken');
+      const user = JSON.parse(localStorage.getItem('user'));
+
+      document.getElementById('userName').textContent = user.name;
+
+      try {
+        // Load recent trips
+        const tripsResponse = await fetch('/api/trips/recent/trips', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const tripsData = await tripsResponse.json();
+
+        if (tripsData.success && tripsData.trips.length > 0) {
+          displayRecentTrips(tripsData.trips);
+          
+          // Count total cities
+          let totalCities = 0;
+          for (let trip of tripsData.trips) {
+            const itineraryResponse = await fetch(`/api/itinerary/${trip.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const itineraryData = await itineraryResponse.json();
+            if (itineraryData.success) {
+              totalCities += itineraryData.itinerary.length;
+            }
+          }
+          document.getElementById('totalCities').textContent = totalCities;
+        }
+
+        // Load all trips for count
+        const allTripsResponse = await fetch('/api/trips', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const allTripsData = allTripsResponse.json();
+        allTripsData.then(data => {
+          if (data.success) {
+            document.getElementById('totalTrips').textContent = data.trips.length;
+          }
+        });
+
+        // Load recommended cities
+        const citiesResponse = await fetch('/api/cities/popular');
+        const citiesData = await citiesResponse.json();
+
+        if (citiesData.success) {
+          displayRecommendedCities(citiesData.cities);
+        }
+      } catch (err) {
+        console.error('Error loading dashboard:', err);
+      }
+    }
+
+    function displayRecentTrips(trips) {
+      const container = document.getElementById('recentTripsContainer');
+      container.innerHTML = '';
+
+      trips.forEach(trip => {
+        const tripDate = new Date(trip.start_date);
+        const endDate = new Date(trip.end_date);
+        const dateRange = `${tripDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+
+        const card = document.createElement('div');
+        card.className = 'trip-card';
+        card.innerHTML = `
+          <div class="trip-card-image" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            ${trip.image ? `<img src="${trip.image}" alt="${trip.name}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+          </div>
+          <div class="trip-card-body">
+            <div class="trip-card-title">${trip.name}</div>
+            <div class="trip-card-date">📅 ${dateRange}</div>
+            <p style="color: #636e72; font-size: 0.9rem; margin-bottom: 1rem;">${trip.description || 'No description'}</p>
+            <a href="/trip/${trip.id}" class="btn btn-primary btn-small">View Trip</a>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function displayRecommendedCities(cities) {
+      const container = document.getElementById('recommendedCitiesContainer');
+      container.innerHTML = '';
+
+      cities.forEach(city => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div style="height: 150px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+          <div class="card-body">
+            <h3>${city.name}</h3>
+            <p style="color: #636e72; font-size: 0.9rem; margin-bottom: 0.5rem;">📍 ${city.country}</p>
+            <p style="color: #636e72; font-size: 0.85rem;">${city.description || 'Amazing destination!'}</p>
+            <span class="badge badge-secondary">Popular</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

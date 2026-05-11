@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Trip - Traveloop</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/login">Login</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <section class="header">
+      <h1 id="tripTitle">Trip</h1>
+      <p>View this amazing trip itinerary</p>
+    </section>
+
+    <div class="tabs">
+      <button class="tab-button active" onclick="switchTab('overview')">Overview</button>
+      <button class="tab-button" onclick="switchTab('itinerary')">Itinerary</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="overview" class="tab-content active">
+      <div class="card">
+        <div class="card-header">Trip Details</div>
+        <div class="card-body" id="tripDetails"></div>
+      </div>
+    </div>
+
+    <!-- Itinerary Tab -->
+    <div id="itinerary" class="tab-content">
+      <div id="itineraryContainer"></div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align: center; margin-top: 3rem; padding: 2rem; border-top: 1px solid var(--border);">
+      <p style="color: #636e72;">This is a read-only shared trip itinerary.</p>
+      <p style="margin-top: 1rem;">
+        <a href="/" style="color: var(--primary); text-decoration: none; font-weight: 600;">← Back to Traveloop</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const shareToken = window.location.pathname.split('/')[2];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadSharedTrip();
+    });
+
+    async function loadSharedTrip() {
+      try {
+        const response = await fetch(`/api/share/view/${shareToken}`);
+        const data = await response.json();
+
+        if (data.success) {
+          displayTrip(data.trip, data.itinerary);
+        } else {
+          document.querySelector('.container').innerHTML = `
+            <div style="text-align: center; padding: 3rem;">
+              <h2>Share Link Not Found</h2>
+              <p style="color: #636e72; margin: 1rem 0;">This share link may have expired or doesn't exist.</p>
+              <a href="/" class="btn btn-primary">Return Home</a>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading shared trip:', err);
+        document.querySelector('.container').innerHTML = `
+          <div style="text-align: center; padding: 3rem;">
+            <h2>Error Loading Trip</h2>
+            <p style="color: #636e72; margin: 1rem 0;">${err.message}</p>
+            <a href="/" class="btn btn-primary">Return Home</a>
+          </div>
+        `;
+      }
+    }
+
+    function displayTrip(trip, itinerary) {
+      document.getElementById('tripTitle').textContent = trip.name;
+
+      const startDate = new Date(trip.start_date).toLocaleDateString();
+      const endDate = new Date(trip.end_date).toLocaleDateString();
+      const days = Math.ceil((new Date(trip.end_date) - new Date(trip.start_date)) / (1000 * 60 * 60 * 24));
+
+      document.getElementById('tripDetails').innerHTML = `
+        <p><strong>📅 Dates:</strong> ${startDate} to ${endDate}</p>
+        <p><strong>⏱️ Duration:</strong> ${days} days</p>
+        <p><strong>📝 Description:</strong></p>
+        <p>${trip.description || 'No description'}</p>
+      `;
+
+      displayItinerary(itinerary);
+    }
+
+    function displayItinerary(itinerary) {
+      const container = document.getElementById('itineraryContainer');
+      container.innerHTML = '';
+
+      if (itinerary.length === 0) {
+        container.innerHTML = '<p style="color: #636e72;">No itinerary added yet.</p>';
+        return;
+      }
+
+      // Group by city
+      const cities = {};
+      itinerary.forEach(item => {
+        if (!cities[item.city_name]) {
+          cities[item.city_name] = {
+            country: item.country,
+            dates: `${new Date(item.start_date).toLocaleDateString()} - ${new Date(item.end_date).toLocaleDateString()}`,
+            activities: []
+          };
+        }
+        if (item.activity_name) {
+          cities[item.city_name].activities.push(item);
+        }
+      });
+
+      Object.keys(cities).forEach(city => {
+        const cityData = cities[city];
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-header">${city}, ${cityData.country}</div>
+          <div class="card-body">
+            <p><strong>📅 ${cityData.dates}</strong></p>
+            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem;">Activities:</h4>
+            <ul class="list-group">
+              ${cityData.activities.length > 0 ? cityData.activities.map(a => `
+                <li class="list-group-item">
+                  <span>${a.activity_name}</span>
+                  ${a.cost ? `<span style="color: var(--primary); font-weight: 600;">$${a.cost}</span>` : ''}
+                </li>
+              `).join('') : '<li class="list-group-item">No activities</li>'}
+            </ul>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

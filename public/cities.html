@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explore Cities - Traveloop</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/trips">My Trips</a></li>
+        <li><a href="/cities">Explore</a></li>
+        <li><a href="/profile">Profile</a></li>
+        <li><a href="#" onclick="logout(); return false;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <section class="header">
+      <h1>Explore Destinations</h1>
+      <p>Discover amazing cities around the world</p>
+    </section>
+
+    <!-- Search Section -->
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="card-header">Search Cities</div>
+      <div class="card-body">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="form-group">
+            <input type="text" id="searchQuery" class="form-control" placeholder="Search city name..." onkeyup="searchCities()">
+          </div>
+          <div class="form-group">
+            <select id="countryFilter" class="form-control" onchange="searchCities()">
+              <option value="">All Countries</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <button class="btn btn-secondary" style="width: 100%;" onclick="loadPopularCities()">Popular Cities</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cities Grid -->
+    <div id="citiesContainer" class="row"></div>
+
+    <div id="noCitiesMessage" class="text-center" style="padding: 2rem; display: none;">
+      <p style="font-size: 1.1rem; color: #636e72;">No cities found. Try another search!</p>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        // Update nav for non-logged-in users
+        document.getElementById('navLinks').innerHTML = `
+          <li><a href="/">Home</a></li>
+          <li><a href="/login">Login</a></li>
+          <li><a href="/signup">Sign Up</a></li>
+        `;
+      }
+
+      loadCountries();
+      loadPopularCities();
+    });
+
+    async function loadCountries() {
+      try {
+        const response = await fetch('/api/cities/countries');
+        const data = await response.json();
+
+        if (data.success) {
+          const select = document.getElementById('countryFilter');
+          data.countries.forEach(country => {
+            const option = document.createElement('option');
+            option.value = country;
+            option.textContent = country;
+            select.appendChild(option);
+          });
+        }
+      } catch (err) {
+        console.error('Error loading countries:', err);
+      }
+    }
+
+    async function searchCities() {
+      const query = document.getElementById('searchQuery').value;
+      const country = document.getElementById('countryFilter').value;
+
+      if (!query && !country) {
+        loadPopularCities();
+        return;
+      }
+
+      try {
+        let url = '/api/cities/search?';
+        if (query) url += `q=${encodeURIComponent(query)}&`;
+        if (country) url += `country=${encodeURIComponent(country)}&`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success) {
+          displayCities(data.cities);
+        }
+      } catch (err) {
+        console.error('Error searching cities:', err);
+      }
+    }
+
+    async function loadPopularCities() {
+      try {
+        const response = await fetch('/api/cities/popular');
+        const data = await response.json();
+
+        if (data.success) {
+          displayCities(data.cities);
+        }
+      } catch (err) {
+        console.error('Error loading popular cities:', err);
+      }
+    }
+
+    function displayCities(cities) {
+      const container = document.getElementById('citiesContainer');
+      const noMessage = document.getElementById('noCitiesMessage');
+
+      if (cities.length === 0) {
+        container.innerHTML = '';
+        noMessage.style.display = 'block';
+        return;
+      }
+
+      noMessage.style.display = 'none';
+      container.innerHTML = '';
+
+      cities.forEach(city => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div style="height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem;">
+            🌆
+          </div>
+          <div class="card-body">
+            <h2 style="margin-bottom: 0.5rem;">${city.name}</h2>
+            <p style="color: #636e72; margin-bottom: 0.5rem;"><strong>📍 ${city.country}</strong></p>
+            <p style="color: #636e72; margin-bottom: 1rem; font-size: 0.9rem;">${city.description || 'Amazing destination with lots to explore!'}</p>
+            ${city.latitude && city.longitude ? `
+              <p style="color: #636e72; font-size: 0.85rem;">📌 ${city.latitude}, ${city.longitude}</p>
+            ` : ''}
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+              <span class="badge badge-secondary">Popular: ${city.popularity}</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

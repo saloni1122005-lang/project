@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trip View - Traveloop</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links">
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/trips">My Trips</a></li>
+        <li><a href="/profile">Profile</a></li>
+        <li><a href="#" onclick="logout(); return false;">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-button active" onclick="switchTab('overview')">Overview</button>
+      <button class="tab-button" onclick="switchTab('itinerary')">Itinerary</button>
+      <button class="tab-button" onclick="switchTab('budget')">Budget</button>
+      <button class="tab-button" onclick="switchTab('checklist')">Checklist</button>
+      <button class="tab-button" onclick="switchTab('notes')">Notes</button>
+      <button class="tab-button" onclick="switchTab('share')">Share</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="overview" class="tab-content active">
+      <div class="card">
+        <div class="card-header" id="tripName">Trip Name</div>
+        <div class="card-body">
+          <div id="tripDetails"></div>
+          <a id="editItineraryLinkOverview" href="/trips" class="btn btn-primary" style="margin-top: 1rem;">Edit Itinerary</a>
+          <a href="/trips" class="btn" style="margin-top: 1rem; background-color: #636e72; color: white;">Back to Trips</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Itinerary Tab -->
+    <div id="itinerary" class="tab-content">
+      <div id="itineraryContainer"></div>
+      <a id="editItineraryLinkItinerary" href="/trips" class="btn btn-primary">Edit Itinerary</a>
+    </div>
+
+    <!-- Budget Tab -->
+    <div id="budget" class="tab-content">
+      <div class="card">
+        <div class="card-header">Budget Summary</div>
+        <div class="card-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+            <div>
+              <p style="color: #636e72; margin-bottom: 0.5rem;">Total Spent</p>
+              <div style="font-size: 2rem; color: var(--primary); font-weight: bold;" id="totalSpent">$0</div>
+            </div>
+            <div>
+              <p style="color: #636e72; margin-bottom: 0.5rem;">Budget Limit</p>
+              <div style="font-size: 2rem; color: var(--secondary); font-weight: bold;" id="budgetLimit">$0</div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="budgetChart"></canvas>
+          </div>
+          <div id="budgetList" style="margin-top: 2rem;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checklist Tab -->
+    <div id="checklist" class="tab-content">
+      <div class="card">
+        <div class="card-header">Packing Checklist</div>
+        <div class="card-body">
+          <div class="form-group">
+            <input type="text" id="checklistItem" class="form-control" placeholder="Add item...">
+            <select id="checklistCategory" class="form-control" style="margin-top: 0.5rem;">
+              <option>Clothing</option>
+              <option>Toiletries</option>
+              <option>Electronics</option>
+              <option>Documents</option>
+              <option>Other</option>
+            </select>
+            <button class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;" onclick="addChecklistItem()">Add Item</button>
+          </div>
+          <ul class="list-group" id="checklistItems"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes Tab -->
+    <div id="notes" class="tab-content">
+      <div class="card">
+        <div class="card-header">Trip Notes & Journal</div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Note Title</label>
+            <input type="text" id="noteTitle" class="form-control" placeholder="Note title...">
+          </div>
+          <div class="form-group">
+            <label>Note Content</label>
+            <textarea id="noteContent" class="form-control" placeholder="Write your note..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="addNote()">Save Note</button>
+          <div id="notesList" style="margin-top: 2rem;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share Tab -->
+    <div id="share" class="tab-content">
+      <div class="card">
+        <div class="card-header">Share Your Trip</div>
+        <div class="card-body">
+          <p>Generate a shareable link to let others view your itinerary.</p>
+          <button class="btn btn-secondary" onclick="generateShareLink()" style="margin-bottom: 1rem;">Generate Share Link</button>
+          <div id="shareLinksContainer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let tripId;
+    let chartInstance = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      tripId = window.location.pathname.split('/')[2];
+      if (!tripId) {
+        window.location.href = '/trips';
+        return;
+      }
+
+      const overviewLink = document.getElementById('editItineraryLinkOverview');
+      const itineraryLink = document.getElementById('editItineraryLinkItinerary');
+      if (overviewLink) overviewLink.href = `/itinerary/${tripId}`;
+      if (itineraryLink) itineraryLink.href = `/itinerary/${tripId}`;
+
+      loadTripData();
+    });
+
+    async function loadTripData() {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        // Load trip details
+        const tripResponse = await fetch(`/api/trips/${tripId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const tripData = await tripResponse.json();
+
+        if (tripData.success) {
+          displayTripOverview(tripData.trip);
+        }
+
+        // Load itinerary
+        const itineraryResponse = await fetch(`/api/itinerary/${tripId}/with-activities`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const itineraryData = await itineraryResponse.json();
+
+        if (itineraryData.success) {
+          displayItinerary(itineraryData.itinerary);
+        }
+
+        // Load budget
+        const budgetResponse = await fetch(`/api/budget/${tripId}/summary`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const budgetData = await budgetResponse.json();
+
+        if (budgetData.success) {
+          displayBudget(budgetData);
+        }
+
+        // Load checklist
+        const checklistResponse = await fetch(`/api/checklist/${tripId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const checklistData = await checklistResponse.json();
+
+        if (checklistData.success) {
+          displayChecklist(checklistData.items);
+        }
+
+        // Load notes
+        const notesResponse = await fetch(`/api/notes/${tripId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const notesData = await notesResponse.json();
+
+        if (notesData.success) {
+          displayNotes(notesData.notes);
+        }
+
+        // Load share links
+        const shareResponse = await fetch(`/api/share/${tripId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const shareData = await shareResponse.json();
+
+        if (shareData.success) {
+          displayShareLinks(shareData.links);
+        }
+      } catch (err) {
+        console.error('Error loading trip data:', err);
+      }
+    }
+
+    function displayTripOverview(trip) {
+      document.getElementById('tripName').textContent = trip.name;
+      const startDate = new Date(trip.start_date).toLocaleDateString();
+      const endDate = new Date(trip.end_date).toLocaleDateString();
+      const days = Math.ceil((new Date(trip.end_date) - new Date(trip.start_date)) / (1000 * 60 * 60 * 24));
+
+      document.getElementById('tripDetails').innerHTML = `
+        <p><strong>📅 Dates:</strong> ${startDate} to ${endDate}</p>
+        <p><strong>⏱️ Duration:</strong> ${days} days</p>
+        <p><strong>💰 Budget Limit:</strong> ${trip.budget_limit ? '$' + trip.budget_limit : 'Not set'}</p>
+        <p><strong>📝 Description:</strong></p>
+        <p>${trip.description || 'No description'}</p>
+      `;
+    }
+
+    function displayItinerary(itinerary) {
+      const container = document.getElementById('itineraryContainer');
+      container.innerHTML = '';
+
+      if (itinerary.length === 0) {
+        container.innerHTML = '<p style="color: #636e72;">No itinerary added yet. Add cities to your trip!</p>';
+        return;
+      }
+
+      // Group by city
+      const cities = {};
+      itinerary.forEach(item => {
+        if (!cities[item.city_name]) {
+          cities[item.city_name] = {
+            country: item.country,
+            dates: `${new Date(item.start_date).toLocaleDateString()} - ${new Date(item.end_date).toLocaleDateString()}`,
+            activities: []
+          };
+        }
+        if (item.activity_name) {
+          cities[item.city_name].activities.push(item);
+        }
+      });
+
+      Object.keys(cities).forEach(city => {
+        const cityData = cities[city];
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-header">${city}, ${cityData.country}</div>
+          <div class="card-body">
+            <p><strong>📅 ${cityData.dates}</strong></p>
+            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem;">Activities:</h4>
+            <ul class="list-group">
+              ${cityData.activities.length > 0 ? cityData.activities.map(a => `
+                <li class="list-group-item">
+                  <span>${a.activity_name} - $${a.cost || 0}</span>
+                </li>
+              `).join('') : '<li class="list-group-item">No activities</li>'}
+            </ul>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function displayBudget(data) {
+      document.getElementById('totalSpent').textContent = '$' + data.total;
+      document.getElementById('budgetLimit').textContent = '$' + (data.budgetLimit || 0);
+
+      // Create chart
+      const ctx = document.getElementById('budgetChart');
+      if (ctx && data.breakdown.length > 0) {
+        if (chartInstance) {
+          chartInstance.destroy();
+        }
+        
+        chartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: data.breakdown.map(b => b.category),
+            datasets: [{
+              data: data.breakdown.map(b => b.total),
+              backgroundColor: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#ffd93d', '#6c5ce7'],
+              borderColor: 'white',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom'
+              }
+            }
+          }
+        });
+      }
+    }
+
+    function displayChecklist(items) {
+      const container = document.getElementById('checklistItems');
+      container.innerHTML = '';
+
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item';
+        li.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+            <input type="checkbox" ${item.is_completed ? 'checked' : ''} onchange="toggleChecklistItem(${item.id})">
+            <span style="text-decoration: ${item.is_completed ? 'line-through' : 'none'};">${item.item_name}</span>
+            <span class="badge badge-primary">${item.category}</span>
+          </div>
+          <button class="btn btn-danger btn-small" onclick="deleteChecklistItem(${item.id})">Delete</button>
+        `;
+        container.appendChild(li);
+      });
+    }
+
+    function displayNotes(notes) {
+      const container = document.getElementById('notesList');
+      container.innerHTML = '';
+
+      notes.forEach(note => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-body">
+            <div class="flex-between">
+              <h3>${note.title}</h3>
+              <button class="btn btn-danger btn-small" onclick="deleteNote(${note.id})">Delete</button>
+            </div>
+            <p style="color: #636e72; font-size: 0.9rem; margin-bottom: 1rem;">📅 ${new Date(note.note_date || note.created_at).toLocaleDateString()}</p>
+            <p>${note.content}</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function displayShareLinks(links) {
+      const container = document.getElementById('shareLinksContainer');
+      container.innerHTML = '';
+
+      if (links.length === 0) {
+        container.innerHTML = '<p style="color: #636e72;">No share links created yet.</p>';
+        return;
+      }
+
+      links.forEach(link => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-body">
+            <p style="margin-bottom: 0.5rem; color: #636e72; font-size: 0.9rem;">Share Link:</p>
+            <input type="text" class="form-control" value="${window.location.origin}/trip/${link.share_token}/view" readonly>
+            <button class="btn btn-secondary btn-small" style="margin-top: 0.5rem;" onclick="copyToClipboard('${window.location.origin}/trip/${link.share_token}/view')">Copy Link</button>
+            <button class="btn btn-danger btn-small" style="margin-top: 0.5rem;" onclick="deleteShareLink(${link.id})">Delete</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    async function addChecklistItem() {
+      const token = localStorage.getItem('authToken');
+      const itemName = document.getElementById('checklistItem').value;
+      const category = document.getElementById('checklistCategory').value;
+
+      if (!itemName) {
+        alert('Please enter an item name');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/checklist/${tripId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ itemName, category })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          document.getElementById('checklistItem').value = '';
+          loadTripData();
+        }
+      } catch (err) {
+        console.error('Error adding item:', err);
+      }
+    }
+
+    async function toggleChecklistItem(itemId) {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        await fetch(`/api/checklist/${itemId}/toggle`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadTripData();
+      } catch (err) {
+        console.error('Error toggling item:', err);
+      }
+    }
+
+    async function deleteChecklistItem(itemId) {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        await fetch(`/api/checklist/${itemId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadTripData();
+      } catch (err) {
+        console.error('Error deleting item:', err);
+      }
+    }
+
+    async function addNote() {
+      const token = localStorage.getItem('authToken');
+      const title = document.getElementById('noteTitle').value;
+      const content = document.getElementById('noteContent').value;
+
+      if (!title || !content) {
+        alert('Please enter title and content');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/notes/${tripId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            noteDate: new Date().toISOString().split('T')[0]
+          })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          document.getElementById('noteTitle').value = '';
+          document.getElementById('noteContent').value = '';
+          loadTripData();
+        }
+      } catch (err) {
+        console.error('Error adding note:', err);
+      }
+    }
+
+    async function deleteNote(noteId) {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        await fetch(`/api/notes/${tripId}/${noteId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadTripData();
+      } catch (err) {
+        console.error('Error deleting note:', err);
+      }
+    }
+
+    async function generateShareLink() {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        const response = await fetch(`/api/share/${tripId}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          loadTripData();
+          alert('Share link created! Copy the link below.');
+        }
+      } catch (err) {
+        console.error('Error generating share link:', err);
+      }
+    }
+
+    async function deleteShareLink(shareId) {
+      const token = localStorage.getItem('authToken');
+
+      try {
+        await fetch(`/api/share/${shareId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadTripData();
+      } catch (err) {
+        console.error('Error deleting share link:', err);
+      }
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Link copied to clipboard!');
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

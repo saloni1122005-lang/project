@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traveloop - Plan Your Perfect Trip</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container flex-between">
+      <a href="/" class="navbar-brand">🌍 Traveloop</a>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="/">Home</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container">
+    <section class="header">
+      <h1>Welcome to Traveloop</h1>
+      <p>Plan, organize, and share your amazing travel adventures</p>
+      <div style="margin-top: 2rem;">
+        <a href="/login" class="btn btn-primary" style="margin-right: 1rem;">Login</a>
+        <a href="/signup" class="btn btn-secondary">Sign Up</a>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section>
+      <h2 style="text-align: center; margin: 3rem 0 2rem;">Why Choose Traveloop?</h2>
+      <div class="row">
+        <div class="card">
+          <div class="card-body text-center">
+            <h3>📋 Plan with Ease</h3>
+            <p>Create detailed itineraries with multiple cities, activities, and dates.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body text-center">
+            <h3>💰 Budget Management</h3>
+            <p>Track your expenses and get insights with beautiful budget charts.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body text-center">
+            <h3>🎒 Packing Checklist</h3>
+            <p>Never forget anything with categorized packing lists.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body text-center">
+            <h3>📸 Travel Journal</h3>
+            <p>Document your journey with day-wise notes and memories.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body text-center">
+            <h3>🔗 Share Adventures</h3>
+            <p>Generate shareable links and let friends see your itinerary.</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body text-center">
+            <h3>🌟 Discover Cities</h3>
+            <p>Browse popular destinations and find amazing activities.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 2rem 0; border-top: 1px solid var(--border); margin-top: 3rem;">
+      <p>&copy; 2026 Traveloop. All rights reserved. | Plan • Explore • Share</p>
+    </footer>
+  </div>
+
+  <script>
+    // Update navigation based on auth status
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('authToken');
+      const navLinks = document.getElementById('navLinks');
+      
+      if (token) {
+        navLinks.innerHTML = `
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/trips">My Trips</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="#" onclick="logout(); return false;">Logout</a></li>
+        `;
+      }
+    });
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>
